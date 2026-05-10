@@ -4,11 +4,13 @@ pipeline {
 
     stages {
 
+        stage('Clone Repository') {
+            steps {
+                git 'YOUR_GITHUB_REPO'
+            }
+        }
 
-        // The repository is already cloned by Jenkins' SCM configuration.
-        // No need for an explicit 'Clone Repository' stage here.
-
-        stage('Build and Run Docker Containers') {
+        stage('Install Dependencies') {
             steps {
                 script {
                     // Stop and remove any previously running containers to ensure a clean start
