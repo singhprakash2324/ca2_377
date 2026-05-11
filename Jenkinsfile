@@ -1,35 +1,43 @@
-// Jenkinsfile
 pipeline {
     agent any
 
+
     stages {
-
-        stage('Clone Repository') {
+        stage('Build') {
             steps {
-                git 'YOUR_GITHUB_REPO'
+                echo 'Stage 1: Building the project...'
+                echo 'Compiling source code...'
+                sh 'sleep 1'
+                echo 'Build complete!'
             }
         }
 
-        stage('Install Dependencies') {
+
+        stage('Test') {
             steps {
-                script {
-                    // Stop and remove any previously running containers to ensure a clean start
-                    sh 'docker-compose down || true'
-                    // Build the Docker image for your Streamlit app
-                    sh 'docker-compose build'
-                    // Start the Docker containers in detached mode
-                    sh 'docker-compose up -d'
-                }
+                echo 'Stage 2: Running automated tests...'
+                sh 'sleep 1'
+                echo 'All tests passed!'
             }
         }
-        // You can add more stages here, for example, to run tests on your Dockerized application
-        // stage('Test Dockerized Application') {
-        //     steps {
-        //         script {
-        //             // Example: Run tests inside the container
-        //             // sh 'docker-compose exec web pytest'
-        //         }
-        //     }
-        // }
+
+
+        stage('Deploy') {
+            steps {
+                echo 'Stage 3: Deploying to server...'
+                sh 'sleep 1'
+                echo 'Deployment successful!'
+            }
+        }
+    }
+
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed! Check the logs.'
+        }
     }
 }
