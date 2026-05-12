@@ -1,43 +1,49 @@
 pipeline {
     agent any
 
+    environment {
+        APP_PORT = "8501"
+    }
 
     stages {
-        stage('Build') {
+
+        stage('Clone Repository') {
             steps {
-                echo 'Stage 1: Building the project...'
-                echo 'Compiling source code...'
-                sh 'sleep 1'
-                echo 'Build complete!'
+                git branch: 'main',
+                url: 'https://github.com/YOUR_USERNAME/YOUR_REPO.git'
             }
         }
 
-
-        stage('Test') {
+        stage('Install Python & Dependencies') {
             steps {
-                echo 'Stage 2: Running automated tests...'
-                sh 'sleep 1'
-                echo 'All tests passed!'
+                sh '''
+                python3 -m venv venv
+                . venv/bin/activate
+
+                pip install --upgrade pip
+                pip install -r requirements.txt
+                '''
             }
         }
 
-
-        stage('Deploy') {
+        stage('Run Streamlit App') {
             steps {
-                echo 'Stage 3: Deploying to server...'
-                sh 'sleep 1'
-                echo 'Deployment successful!'
+                sh '''
+                . venv/bin/activate
+
+                nohup streamlit run app.py --server.port=$APP_PORT --server.address=0.0.0.0 > streamlit.log 2>&1 &
+                '''
             }
         }
     }
 
-
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo 'Streamlit app deployed successfully!'
         }
+
         failure {
-            echo 'Pipeline failed! Check the logs.'
+            echo 'Pipeline failed!'
         }
     }
 }
