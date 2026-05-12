@@ -10,7 +10,9 @@ pipeline {
 
         stage('Clone Repository') {
             steps {
-                git 'https://github.com/singhprakash2324/ca2_377'
+                
+                git branch: 'main',
+                url: 'https://github.com/singhprakash2324/ca2_377.git'
             }
         }
 
