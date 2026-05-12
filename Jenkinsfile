@@ -1,37 +1,50 @@
-// Jenkinsfile
 pipeline {
     agent any
 
     environment {
-        APP_PORT = "8501"
+        IMAGE_NAME = "streamlit-app"
+        CONTAINER_NAME = "streamlit-container"
     }
 
     stages {
 
         stage('Clone Repository') {
             steps {
-                
                 git branch: 'main',
                 url: 'https://github.com/singhprakash2324/ca2_377.git'
             }
         }
 
-        stage('Install Python & Dependencies') {
+        stage('Build Docker Image') {
             steps {
-                sh 'pip3 install -r requirements.txt'
+                sh 'docker build -t $IMAGE_NAME .'
             }
         }
 
-        stage('Run Application') {
+        stage('Stop Old Container') {
             steps {
-                sh 'nohup python3 app.py &'
+                sh '''
+                docker stop $CONTAINER_NAME || true
+                docker rm $CONTAINER_NAME || true
+                '''
+            }
+        }
+
+        stage('Run Container') {
+            steps {
+                sh '''
+                docker run -d \
+                --name $CONTAINER_NAME \
+                -p 8501:8501 \
+                $IMAGE_NAME
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Streamlit app deployed successfully!'
+            echo 'Deployment Successful!'
         }
 
         failure {
