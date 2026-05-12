@@ -1,3 +1,4 @@
+// Jenkinsfile
 pipeline {
     agent any
 
@@ -9,30 +10,19 @@ pipeline {
 
         stage('Clone Repository') {
             steps {
-                git branch: 'main',
-                url: 'https://github.com/YOUR_USERNAME/YOUR_REPO.git'
+                git 'https://github.com/singhprakash2324/ca2_377'
             }
         }
 
         stage('Install Python & Dependencies') {
             steps {
-                sh '''
-                python3 -m venv venv
-                . venv/bin/activate
-
-                pip install --upgrade pip
-                pip install -r requirements.txt
-                '''
+                sh 'pip3 install -r requirements.txt'
             }
         }
 
-        stage('Run Streamlit App') {
+        stage('Run Application') {
             steps {
-                sh '''
-                . venv/bin/activate
-
-                nohup streamlit run app.py --server.port=$APP_PORT --server.address=0.0.0.0 > streamlit.log 2>&1 &
-                '''
+                sh 'nohup python3 app.py &'
             }
         }
     }
