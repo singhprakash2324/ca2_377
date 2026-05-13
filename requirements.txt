@@ -4,3 +4,5 @@ prometheus_client
 streamlit
 streamlit_autorefresh
 humanize
+flask
+pytest
