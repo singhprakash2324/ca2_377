@@ -1,5 +1,6 @@
  flask
- psutil
- prometheus_client
- streamlit
- streamlit_autorefresh
+psutil
+prometheus_client
+streamlit
+streamlit_autorefresh
+humanize

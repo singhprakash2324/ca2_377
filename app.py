@@ -3,6 +3,7 @@ import psutil
 import pandas as pd
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+import humanize # Import humanize for better size formatting
 
 
 # Page config
@@ -19,63 +20,89 @@ st_autorefresh(interval=2000, key="system_monitor")
 
 st.title("🚀 Real-Time System Monitoring Dashboard")
 
-# Session state
-if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(
-        columns=["Time", "CPU", "Memory"]
-    )
+# Create tabs
+tab1, tab2 = st.tabs(["Overview", "Processes"])
 
-# Collect metrics
-cpu_usage = psutil.cpu_percent()
-memory_info = psutil.virtual_memory()
-disk_info = psutil.disk_usage('/')
+with tab1:
+    st.subheader("📊 System Overview")
+    # Session state
+    if "data" not in st.session_state:
+        st.session_state.data = pd.DataFrame(
+            columns=["Time", "CPU", "Memory"]
+        )
 
-current_time = datetime.now().strftime("%H:%M:%S")
+    # Collect metrics
+    cpu_usage = psutil.cpu_percent()
+    memory_info = psutil.virtual_memory()
+    disk_info = psutil.disk_usage('/')
 
-# Store data
-new_row = pd.DataFrame({
-    "Time": [current_time],
-    "CPU": [cpu_usage],
-    "Memory": [memory_info.percent]
-})
+    current_time = datetime.now().strftime("%H:%M:%S")
 
-st.session_state.data = pd.concat(
-    [st.session_state.data, new_row],
-    ignore_index=True
-).tail(20)
+    # Store data
+    new_row = pd.DataFrame({
+        "Time": [current_time],
+        "CPU": [cpu_usage],
+        "Memory": [memory_info.percent]
+    })
 
-# Metrics
-col1, col2, col3 = st.columns(3)
+    st.session_state.data = pd.concat(
+        [st.session_state.data, new_row],
+        ignore_index=True
+    ).tail(20)
 
-col1.metric("CPU Usage", f"{cpu_usage}%")
-col2.metric(
-    "Memory Usage",
-    f"{memory_info.percent}%",
-    f"{memory_info.available // (1024**2)} MB Available"
-)
-col3.metric("Disk Usage", f"{disk_info.percent}%")
+    # Metrics
+    col1, col2, col3 = st.columns(3)
 
-# Charts
-st.subheader("📈 System Performance")
+    with col1:
+        st.metric("CPU Usage", f"{cpu_usage}%")
+    with col2:
+        st.metric(
+            "Memory Usage",
+            f"{memory_info.percent}%",
+            f"{humanize.naturalsize(memory_info.used)} used / {humanize.naturalsize(memory_info.total)} total"
+        )
+    with col3:
+        st.metric(
+            "Disk Usage",
+            f"{disk_info.percent}%",
+            f"{humanize.naturalsize(disk_info.used)} used / {humanize.naturalsize(disk_info.total)} total"
+        )
 
-chart_data = st.session_state.data.set_index("Time")
-st.line_chart(chart_data)
+    # Charts
+    st.subheader("📈 System Performance")
 
-# Top processes
-st.subheader("⚙️ Top Processes")
+    chart_data = st.session_state.data.set_index("Time")
+    st.line_chart(chart_data)
 
-processes = []
+with tab2:
+    st.subheader("⚙️ Top Processes")
 
-for proc in psutil.process_iter(
-    ['pid', 'name', 'cpu_percent', 'memory_percent']
-):
-    processes.append(proc.info)
+    processes = []
 
-df_proc = pd.DataFrame(processes)
+    for proc in psutil.process_iter(
+        ['pid', 'name', 'cpu_percent', 'memory_percent', 'username', 'status', 'num_threads', 'memory_info']
+    ):
+        try:
+            pinfo = proc.info
+            if pinfo['memory_info'] is not None:
+                pinfo['rss_mb'] = pinfo['memory_info'].rss / (1024 * 1024)
+                pinfo['vms_mb'] = pinfo['memory_info'].vms / (1024 * 1024)
+            else:
+                pinfo['rss_mb'] = 0
+                pinfo['vms_mb'] = 0
+            processes.append(pinfo)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
 
-df_proc = df_proc.sort_values(
-    by='cpu_percent',
-    ascending=False
-).head(5)
+    df_proc = pd.DataFrame(processes)
 
-st.dataframe(df_proc)
+    df_proc = df_proc.sort_values(
+        by='cpu_percent',
+        ascending=False
+    ).head(10) # Display top 10 processes
+
+    # Select and rename columns for better display
+    df_proc = df_proc[['name', 'pid', 'username', 'status', 'cpu_percent', 'memory_percent', 'rss_mb', 'vms_mb', 'num_threads']]
+    df_proc.columns = ['Process Name', 'PID', 'User', 'Status', 'CPU %', 'Memory %', 'RSS (MB)', 'VMS (MB)', 'Threads']
+
+    st.dataframe(df_proc)
