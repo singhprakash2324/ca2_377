@@ -1,8 +1,5 @@
- flask
-psutil
-prometheus_client
 streamlit
-streamlit_autorefresh
-humanize
-flask
-pytest
+yfinance
+pandas
+numpy
+plotly

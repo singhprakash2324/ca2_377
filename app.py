@@ -1,108 +1,219 @@
+# app.py
+# Stock Market Analysis Dashboard using Streamlit
+
 import streamlit as st
-import psutil
+import yfinance as yf
 import pandas as pd
-from datetime import datetime
-from streamlit_autorefresh import st_autorefresh
-import humanize # Import humanize for better size formatting
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+from datetime import date
 
-
-# Page config
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
-    page_title="Real-Time System Monitor",
-    page_icon="📊",
+    page_title="Stock Market Dashboard",
+    page_icon="📈",
     layout="wide"
 )
 
-# Auto refresh every 2 seconds
-st_autorefresh(interval=2000, key="system_monitor")
+# ---------------- CUSTOM CSS ----------------
+st.markdown("""
+<style>
+.main {
+    background-color: #0E1117;
+    color: white;
+}
 
+.stMetric {
+    background-color: #1E1E1E;
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid #333;
+}
 
+h1, h2, h3 {
+    color: #00FFAA;
+}
 
-st.title("🚀 Real-Time System Monitoring Dashboard")
+[data-testid="stSidebar"] {
+    background-color: #111827;
+}
 
-# Create tabs
-tab1, tab2 = st.tabs(["Overview", "Processes"])
+.block-container {
+    padding-top: 1rem;
+}
 
-with tab1:
-    st.subheader("📊 System Overview")
-    # Session state
-    if "data" not in st.session_state:
-        st.session_state.data = pd.DataFrame(
-            columns=["Time", "CPU", "Memory"]
-        )
+</style>
+""", unsafe_allow_html=True)
 
-    # Collect metrics
-    cpu_usage = psutil.cpu_percent()
-    memory_info = psutil.virtual_memory()
-    disk_info = psutil.disk_usage('/')
+# ---------------- TITLE ----------------
+st.title("📊 Stock Market Analysis Dashboard")
+st.markdown("### Real-Time Financial Insights & Technical Analysis")
 
-    current_time = datetime.now().strftime("%H:%M:%S")
+# ---------------- SIDEBAR ----------------
+st.sidebar.header("⚙️ Dashboard Controls")
 
-    # Store data
-    new_row = pd.DataFrame({
-        "Time": [current_time],
-        "CPU": [cpu_usage],
-        "Memory": [memory_info.percent]
-    })
+stock = st.sidebar.text_input("Enter Stock Symbol", "AAPL")
 
-    st.session_state.data = pd.concat(
-        [st.session_state.data, new_row],
-        ignore_index=True
-    ).tail(20)
+start_date = st.sidebar.date_input(
+    "Start Date",
+    value=pd.to_datetime("2023-01-01")
+)
 
-    # Metrics
-    col1, col2, col3 = st.columns(3)
+end_date = st.sidebar.date_input(
+    "End Date",
+    value=date.today()
+)
 
-    with col1:
-        st.metric("CPU Usage", f"{cpu_usage}%")
-    with col2:
-        st.metric(
-            "Memory Usage",
-            f"{memory_info.percent}%",
-            f"{humanize.naturalsize(memory_info.used)} used / {humanize.naturalsize(memory_info.total)} total"
-        )
-    with col3:
-        st.metric(
-            "Disk Usage",
-            f"{disk_info.percent}%",
-            f"{humanize.naturalsize(disk_info.used)} used / {humanize.naturalsize(disk_info.total)} total"
-        )
+# ---------------- FETCH DATA ----------------
+data = yf.download(stock, start=start_date, end=end_date)
 
-    # Charts
-    st.subheader("📈 System Performance")
+if data.empty:
+    st.error("No data found. Please check the stock symbol.")
+    st.stop()
 
-    chart_data = st.session_state.data.set_index("Time")
-    st.line_chart(chart_data)
+# ---------------- DATA PROCESSING ----------------
+data["MA50"] = data["Close"].rolling(50).mean()
+data["MA200"] = data["Close"].rolling(200).mean()
 
-with tab2:
-    st.subheader("⚙️ Top Processes")
+# Daily Returns
+data["Daily Return"] = data["Close"].pct_change()
 
-    processes = []
+# ---------------- STOCK INFO ----------------
+ticker = yf.Ticker(stock)
+info = ticker.info
 
-    for proc in psutil.process_iter(
-        ['pid', 'name', 'cpu_percent', 'memory_percent', 'username', 'status', 'num_threads', 'memory_info']
-    ):
-        try:
-            pinfo = proc.info
-            if pinfo['memory_info'] is not None:
-                pinfo['rss_mb'] = pinfo['memory_info'].rss / (1024 * 1024)
-                pinfo['vms_mb'] = pinfo['memory_info'].vms / (1024 * 1024)
-            else:
-                pinfo['rss_mb'] = 0
-                pinfo['vms_mb'] = 0
-            processes.append(pinfo)
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
+current_price = info.get("currentPrice", 0)
+market_cap = info.get("marketCap", 0)
+pe_ratio = info.get("trailingPE", 0)
+volume = info.get("volume", 0)
 
-    df_proc = pd.DataFrame(processes)
+# ---------------- METRICS ----------------
+col1, col2, col3, col4 = st.columns(4)
 
-    df_proc = df_proc.sort_values(
-        by='cpu_percent',
-        ascending=False
-    ).head(10) # Display top 10 processes
+with col1:
+    st.metric("💰 Current Price", f"${current_price}")
 
-    # Select and rename columns for better display
-    df_proc = df_proc[['name', 'pid', 'username', 'status', 'cpu_percent', 'memory_percent', 'rss_mb', 'vms_mb', 'num_threads']]
-    df_proc.columns = ['Process Name', 'PID', 'User', 'Status', 'CPU %', 'Memory %', 'RSS (MB)', 'VMS (MB)', 'Threads']
+with col2:
+    st.metric("🏢 Market Cap", f"{market_cap:,}")
 
-    st.dataframe(df_proc)
+with col3:
+    st.metric("📊 P/E Ratio", f"{pe_ratio}")
+
+with col4:
+    st.metric("📦 Volume", f"{volume:,}")
+
+# ---------------- PRICE CHART ----------------
+st.subheader("📈 Stock Price Trend")
+
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    x=data.index,
+    y=data["Close"],
+    mode='lines',
+    name='Close Price',
+    line=dict(color='#00FFAA', width=3)
+))
+
+fig.add_trace(go.Scatter(
+    x=data.index,
+    y=data["MA50"],
+    mode='lines',
+    name='50-Day MA',
+    line=dict(color='orange', width=2)
+))
+
+fig.add_trace(go.Scatter(
+    x=data.index,
+    y=data["MA200"],
+    mode='lines',
+    name='200-Day MA',
+    line=dict(color='red', width=2)
+))
+
+fig.update_layout(
+    template="plotly_dark",
+    height=600,
+    xaxis_title="Date",
+    yaxis_title="Price (USD)",
+    hovermode="x unified"
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# ---------------- CANDLESTICK CHART ----------------
+st.subheader("🕯️ Candlestick Chart")
+
+candlestick = go.Figure(data=[go.Candlestick(
+    x=data.index,
+    open=data['Open'],
+    high=data['High'],
+    low=data['Low'],
+    close=data['Close']
+)])
+
+candlestick.update_layout(
+    template="plotly_dark",
+    height=600
+)
+
+st.plotly_chart(candlestick, use_container_width=True)
+
+# ---------------- DAILY RETURNS ----------------
+st.subheader("📉 Daily Returns Distribution")
+
+hist_fig = px.histogram(
+    data,
+    x="Daily Return",
+    nbins=50,
+    title="Daily Returns Histogram"
+)
+
+hist_fig.update_layout(
+    template="plotly_dark",
+    height=500
+)
+
+st.plotly_chart(hist_fig, use_container_width=True)
+
+# ---------------- VOLUME ANALYSIS ----------------
+st.subheader("📦 Trading Volume")
+
+volume_fig = go.Figure()
+
+volume_fig.add_trace(go.Bar(
+    x=data.index,
+    y=data["Volume"],
+    marker_color="#00CC96"
+))
+
+volume_fig.update_layout(
+    template="plotly_dark",
+    height=500,
+    xaxis_title="Date",
+    yaxis_title="Volume"
+)
+
+st.plotly_chart(volume_fig, use_container_width=True)
+
+# ---------------- RAW DATA ----------------
+st.subheader("📋 Historical Data")
+
+st.dataframe(data.tail(20), use_container_width=True)
+
+# ---------------- STATISTICS ----------------
+st.subheader("📊 Statistical Summary")
+
+st.dataframe(data.describe(), use_container_width=True)
+
+# ---------------- FOOTER ----------------
+st.markdown("---")
+st.markdown(
+    """
+    <center>
+    Made with ❤️ using Streamlit, Plotly & Yahoo Finance API
+    </center>
+    """,
+    unsafe_allow_html=True
+)
